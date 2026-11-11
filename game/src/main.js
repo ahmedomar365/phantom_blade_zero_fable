@@ -23,7 +23,8 @@ class Game {
   constructor() {
     setDiff(params.get('diff') || localStorage.getItem('vg-diff') || 'master');
     this.hud = new Hud(); this.audio = new Audio();
-    this.q = num('q', 2); this.god = params.has('god'); this.auto = params.has('auto'); this.botSkill = num('bot', 0.75);
+    this.mobile = matchMedia('(pointer: coarse)').matches || params.has('mobile');
+    this.q = num('q', this.mobile ? 0 : 2); this.god = params.has('god'); this.auto = params.has('auto'); this.botSkill = num('bot', 0.75);
     this.state = 'load'; this.time = now(); this.gt = 0; this.stopT = 0; this.slowT = 0; this.slowScale = 1; this.scale = 1;
     this.trauma = 0; this.camPos = new V3(0, 2.4, 12); this.camLook = new V3(0, 1.6, 0); this.camFov = 50; this.camDir = new V3(0, 0, 1);
     this.cine = null; this.seq = []; this.phaseK = 0; this.phaseTarget = 0; this.danger = 0; this.bars = 0;
@@ -46,7 +47,8 @@ class Game {
     ]);
     const scene = this.env.scene;
     this.input = new Input({ onAny: () => this.anyKey(), onDevice: () => this.refreshKeys() });
-    if (['ps', 'xbox', 'kbm'].includes(params.get('glyphs'))) this.input.setDevice(params.get('glyphs'));          // force button hints: glyphs=ps | xbox | kbm
+    if (['ps', 'xbox', 'kbm'].includes(params.get('glyphs'))) this.input.setDevice(params.get('glyphs'));
+    else if (this.mobile) this.input.setDevice('touch');          // force button hints: glyphs=ps | xbox | kbm
     this.hero = new Hero(this, hg, hm); this.boss = new Boss(this, bg, bm);
     scene.add(this.hero.a.root, this.boss.a.root);
     this.fx = new FX(scene);
@@ -61,6 +63,11 @@ class Game {
     this.spiritLight = new THREE.PointLight(0x6fd0ff, 0, 8, 1.8);
     scene.add(this.spiritLight);
     this.focus = new V3();
+    if (this.mobile && !params.has('q')) { this.env.pixelRatio = Math.min(window.devicePixelRatio || 1, 1.3); this.env.resize(); }      // small screens: fewer effects, crisp pixels
+    const fit = () => { this.env.resize(); };
+    addEventListener('orientationchange', () => setTimeout(fit, 250));
+    if (window.visualViewport) window.visualViewport.addEventListener('resize', fit);
+    document.addEventListener('visibilitychange', () => { if (document.hidden && this.state === 'fight' && !this.paused && !this.demo && !this.auto) this.togglePause(); });
     this.place();
     this.env.camera.fov = 50;
     addEventListener('resize', () => this.env.resize());
@@ -79,6 +86,7 @@ class Game {
 
   controls() {
     const g = (a) => this.input.glyph(a);
+    if (this.input.device === 'touch') return [];
     return [[g('move'), 'Move'], [g('light'), 'Light attack'], [g('heavy'), 'Heavy attack (qi)'], [g('kick'), 'Kick: breaks his guard'],
       [g('block'), 'Guard · tap to parry'], [g('dodge'), 'Dodge'], [g('spirit'), 'Summoned arm (qi)'], [g('heal'), 'Focus (heal)'],
       [g('swapW'), 'Switch weapon'], [g('swapS'), 'Switch summoned arm'], [g('exec'), 'Finisher'], [g('pause'), 'Pause']];
@@ -87,9 +95,9 @@ class Game {
   showTitle() {
     this.overlayKind = 'title';
     this.menu({
-      tag: `Difficulty: ${T.label}  ·  ${this.input.glyph('kick')} to change`, body: 'Marshal Yan has held the Vermilion Gate for thirty winters. No one has passed.<br>Read his blade: <span style="color:#ffe2a0">gold glints can be parried</span>, <span style="color:#ff7a5a">red glints must be dodged</span>. Break his posture, then finish it.',
-      keys: this.controls(), go: `Draw your sword  (${this.input.glyph('confirm')})`, onGo: () => { this.demoMode = false; this.begin(); },
-      go2: `Watch the showcase  (${this.input.glyph('heavy')})`, onGo2: () => { this.demoMode = true; this.begin(); },
+      tag: `Difficulty: ${T.label}  ·  ${this.input.device === 'touch' ? 'tap here' : this.input.glyph('kick')} to change`, body: 'Marshal Yan has held the Vermilion Gate for thirty winters. No one has passed.<br>Read his blade: <span style="color:#ffe2a0">gold glints can be parried</span>, <span style="color:#ff7a5a">red glints must be dodged</span>. Break his posture, then finish it.',
+      keys: this.controls(), go: `Draw your sword${this.input.hint('confirm')}`, onGo: () => { this.demoMode = false; this.begin(); },
+      go2: `Watch the showcase${this.input.hint('heavy')}`, onGo2: () => { this.demoMode = true; this.begin(); },
     });
   }
 
@@ -97,13 +105,14 @@ class Game {
     if (this.state !== 'fight' && !this.paused) return;
     this.paused = !this.paused;
     if (this.audio.ctx) this.audio.ctx[this.paused ? 'suspend' : 'resume']();
-    if (this.paused) { this.overlayKind = 'pause'; this.menu({ han: '止', title: 'Paused', tag: 'Controls', keys: this.controls(), go: `Resume  (${this.input.glyph('confirm')})`, onGo: () => this.togglePause() }); }
+    if (this.paused) { this.overlayKind = 'pause'; this.menu({ han: '止', title: 'Paused', tag: 'Controls', keys: this.controls(), go: `Resume${this.input.hint('confirm')}`, onGo: () => this.togglePause() }); }
     else { this.overlayKind = null; this.menu({ show: false }); this.input.clear(); this.last = now(); }
   }
 
   /** The hint panel and menus follow whichever device was used last. */
   refreshKeys() {
     if (!this.input) return;
+    document.body.classList.toggle('touch', this.input.device === 'touch');
     const g = (a) => this.input.glyph(a);
     this.hud.keys([[['Move', g('move')]], [['Light', g('light')], ['Heavy', g('heavy')], ['Kick', g('kick')]], [['Guard / parry', g('block')], ['Dodge', g('dodge')]],
       [['Summon', g('spirit')], ['Heal', g('heal')]], [['Weapon', g('swapW')], ['Arm', g('swapS')]]]);
@@ -127,6 +136,10 @@ class Game {
     const phase = retry && this.reached2 && T.retryP2 ? 2 : num('phase', 1);
     if (!phase || phase === 1) this.reached2 = false;
     this.audio.start();
+    if (this.input.device === 'touch') {          // phones: full screen, locked to landscape where the browser allows it
+      const el = document.documentElement, fs = el.requestFullscreen || el.webkitRequestFullscreen;
+      try { if (fs && !document.fullscreenElement) Promise.resolve(fs.call(el)).then(() => screen.orientation && screen.orientation.lock && screen.orientation.lock('landscape')).catch(() => {}); } catch (e) { /* not allowed */ }
+    }
     this.overlayKind = null; this.menu({ show: false }); this.input.clear(); this.camYaw = 0; this.camIdle = 0;
     this.hero.reset(); this.boss.reset(phase); this.place();
     if (params.has('hp')) this.boss.hp = this.boss.maxHp * num('hp', 1);
@@ -362,15 +375,15 @@ class Game {
       this.state = 'victory'; this.hud.show(false);
       this.menu({ han: rank, title: 'The Gate Is Open', tag: 'Marshal Yan has fallen',
         stats: [['Time', `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`], ['Parries', s.parries], ['Perfect dodges', s.dodges], ['Damage taken', Math.round(s.taken)]],
-        go: this.demo ? `Play it yourself  (${this.input.glyph('confirm')})` : `Duel again  (${this.input.glyph('confirm')})`, onGo: () => { this.reached2 = false; this.demoMode = false; this.begin(true); },
-        go2: this.demo ? `Watch again  (${this.input.glyph('heavy')})` : null, onGo2: () => { this.reached2 = false; this.demoMode = true; this.begin(); } });
+        go: this.demo ? `Play it yourself${this.input.hint('confirm')}` : `Duel again${this.input.hint('confirm')}`, onGo: () => { this.reached2 = false; this.demoMode = false; this.begin(true); },
+        go2: this.demo ? `Watch again${this.input.hint('heavy')}` : null, onGo2: () => { this.reached2 = false; this.demoMode = true; this.begin(); } });
     });
   }
 
   onHeroDead() {
     this.state = 'herodead'; this.slowmo(0.3, 1.2); this.hud.prompt(null);
     this.after(2.8, () => {
-      this.menu({ han: '敗', title: 'You Fell', tag: this.reached2 && T.retryP2 ? 'The Marshal\'s wrath remains' : 'The gate stays shut · the duel begins again', go: `Rise again  (${this.input.glyph('confirm')})`, onGo: () => this.begin(true) });
+      this.menu({ han: '敗', title: 'You Fell', tag: this.reached2 && T.retryP2 ? 'The Marshal\'s wrath remains' : 'The gate stays shut · the duel begins again', go: `Rise again${this.input.hint('confirm')}`, onGo: () => this.begin(true) });
       if (this.auto) this.after(1.5, () => this.begin(true));
     });
   }
@@ -521,6 +534,10 @@ class Game {
       this.sndT = (this.sndT || 0) - real;
       if (this.sndT <= 0) { this.hud.popup('CLICK OR PRESS A KEY ONCE FOR SOUND', 'blue'); this.sndT = 10; }
     }
+    // on-screen controls only while the player is actually in control
+    const touchOn = this.input.device === 'touch' && this.state === 'fight' && !this.demo && !this.cine && h.alive;
+    if (touchOn !== this._touchOn) { this._touchOn = touchOn; document.getElementById('touch').classList.toggle('on', touchOn); }
+    if (touchOn) { const sp = h.spirit, off = !sp || h.qi < MOVES[sp.id].qi; if (off !== this._armOff) { this._armOff = off; document.getElementById('tArm').classList.toggle('off', off); } }
     this.danger = Math.max(0, this.danger - real * 1.6);
     this.hud.danger(this.danger * 0.8);
 

@@ -3,7 +3,7 @@
 A third-person sword duel in the browser, in the style of *Phantom Blade Zero*'s boss fights: a lone swordsman against
 Marshal Yan, a two-phase glaive master, in a rain-soaked shrine courtyard.
 
-**Play it: https://vermilion.fbp.dev** (keyboard and mouse, or a DualSense / DualShock / Xbox controller)
+**Play it: https://vermilion.fbp.dev** (keyboard and mouse, a DualSense / DualShock / Xbox controller, or touch on a phone in landscape)
 
 Everything here was written by an AI model (Claude, "Fable") in one working session from plain-language requests:
 the game code, every 3D model, every texture and every animation. Nothing was downloaded or hand-made. The art and
@@ -38,6 +38,8 @@ showcase runs live from the title screen ("Watch the showcase").
 - **Qi.** One resource for heavy moves, summons and guarded hits; it returns on light hits, parries and perfect dodges.
 - **Perfect dodge and counter.** Dodging through a strike slows time; a parry or perfect dodge powers the next attack.
 - **Kick.** After a few hits he guards and counters; a kick knocks the guard aside.
+- **Phones and tablets.** Full touch controls in landscape: a floating stick under the left thumb, action buttons under
+  the right, and the weapon, arm and heal panels are tappable. Portrait shows a turn-your-device notice.
 - **Full controller support** with rumble, analogue movement, button hints that follow the device in use, and
   menus driven from the pad.
 - **Two difficulties.** *Master* (default) has a 0.13 s parry window, short dodge invulnerability, heavy hits, a boss
@@ -115,9 +117,11 @@ limbs on every frame and bakes 49 clips, including root motion so feet stay plan
 - `node tools/play.mjs "auto=1" run 10000,10000`: a bot plays in headless Chrome; saves screenshots, prints the state.
 - `node tools/pad_test.mjs`: drives the game through a simulated DualSense.
 - `node tools/input_test.mjs`: drives it with real keyboard and mouse events.
+- `node tools/touch_test.mjs`: drives it as a phone in landscape with multi-touch events.
 - `node tools/capture.mjs` then `blender -b -P tools/encode_video.py`: records the showcase frame by frame.
 
-Honest limits: it was balanced against a bot rather than by long human play-testing, faces are simple up close, and
+Honest limits: it was balanced against a bot rather than by long human play-testing, touch play was checked in a
+phone-sized emulation rather than on many real devices (older phones may run it slowly), faces are simple up close, and
 cloth can clip through legs in deep lunges.
 
 ## Licence

@@ -403,7 +403,8 @@ export class Hero {
     } else { if (wS) I.keep('spirit'); if (wSwap) I.keep('swapW'); }
     if (free()) {
       if (I.block) { this.set('block', 'Block', { fade: 0.1 }); return; }
-      if (moving && t > (a.evTime('free') || 0) + 0.05) { this.set('run', 'Run', { fade: 0.14 }); return; }
+      // a held stick only walks out of a swing late, so combos still chain while moving (pads and touch keep the stick tilted)
+      if (moving && t > (a.evTime('free') || 0) + 0.17 && !(this.buffer && this.bufferT > 0)) { this.set('run', 'Run', { fade: 0.14 }); return; }
       if (this.buffer && this.bufferT > 0 && !this.next(this.buffer, this.atk)) {      // chain exhausted: start over
         const n = this.next(this.buffer, 'start');
         if (n && t > (a.evTime('free') || 0) + 0.04) { this.startAttack(n); return; }
