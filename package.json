@@ -1,0 +1,1 @@
+{"name":"vermilion-gate","private":true,"type":"module","version":"1.0.0","dependencies":{"playwright-core":"^1.65.0","three":"^0.187.0"}}

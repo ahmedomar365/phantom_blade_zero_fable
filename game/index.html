@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Vermilion Gate</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">
+<style>
+  :root { --ink: #0a0b0e; --paper: #e9e2d0; --red: #c2281b; --gold: #e2b25a; --jade: #9fd8c2; --serif: "Palatino Linotype", "Book Antiqua", Georgia, serif; --han: "Yu Mincho", "SimSun", "MS Mincho", serif; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; font-family: var(--serif); color: var(--paper); user-select: none; -webkit-user-select: none; }
+  canvas#c { position: fixed; inset: 0; width: 100%; height: 100%; display: block; cursor: none; }
+  #hud { position: fixed; inset: 0; pointer-events: none; opacity: 0; transition: opacity .6s; }
+  #hud.on { opacity: 1; }
+
+  #boss { position: absolute; top: 4.2vh; left: 50%; transform: translateX(-50%); width: min(62vw, 760px); text-align: center; opacity: 0; transition: opacity .8s; }
+  #boss.on { opacity: 1; }
+  #bossName { font-size: clamp(15px, 1.5vw, 22px); letter-spacing: .42em; text-indent: .42em; text-transform: uppercase; text-shadow: 0 2px 8px #000; }
+  #bossSub { font-size: clamp(10px, .85vw, 13px); letter-spacing: .3em; text-indent: .3em; color: #b9ac92; margin-top: 2px; text-shadow: 0 1px 6px #000; }
+  .bar { position: relative; height: 9px; margin-top: 9px; background: rgba(8, 8, 10, .72); border: 1px solid rgba(233, 226, 208, .28); transform: skewX(-18deg); }
+  .bar > i { position: absolute; left: 0; top: 0; bottom: 0; width: 100%; transform-origin: left; display: block; }
+  #bossLag { background: #f3ead6; transition: transform .7s .25s ease-out; }
+  #bossFill { background: linear-gradient(90deg, #7a1410, #d2301f 60%, #ff5a36); }
+  #bossMark { position: absolute; left: 50%; top: -4px; bottom: -4px; width: 2px; background: rgba(233, 226, 208, .7); }
+  #post { height: 4px; margin: 5px auto 0; width: 58%; border-color: rgba(226, 178, 90, .3); }
+  #postFill { background: linear-gradient(90deg, #8a6a2c, #ffd98a); transform: scaleX(0); transform-origin: center !important; left: 0; }
+  #post.full #postFill { background: #fff; box-shadow: 0 0 12px #ffd98a; }
+
+  #hero { position: absolute; left: 3.2vw; bottom: 5vh; width: min(30vw, 380px); }
+  #hero .bar { height: 10px; margin-top: 0; }
+  #heroLag { background: #c2281b; transition: transform .6s .2s ease-out; }
+  #heroFill { background: linear-gradient(90deg, #5f9d8b, #c8f0e0); }
+  #guard { height: 4px; margin-top: 5px; width: 72%; border-color: rgba(233, 226, 208, .2); }
+  #guard { height: 6px !important; }
+  #guardFill { background: linear-gradient(90deg, #3f86c4, #a8e4ff); }
+  #guard.low #guardFill { background: #ff8a5a; }
+  #guard.flash { box-shadow: 0 0 14px #a8e4ff; }
+  #arms { display: flex; gap: 18px; margin-bottom: 12px; font-size: 12px; letter-spacing: .14em; color: #cfc6b0; text-shadow: 0 1px 4px #000; }
+  #arms > div { display: flex; align-items: center; gap: 8px; padding: 4px 10px 4px 6px; border-left: 2px solid var(--gold); background: linear-gradient(90deg, rgba(8, 8, 10, .6), rgba(8, 8, 10, 0)); }
+  #arms kbd { font-family: inherit; font-size: 11px; border: 1px solid rgba(233, 226, 208, .4); padding: 0 6px; color: var(--paper); letter-spacing: 0; white-space: nowrap; }
+  #armS { border-left-color: #7fd0ff !important; }
+  #armS.off { opacity: .45; }
+  #armW em { font-style: normal; color: var(--gold); font-size: 10px; margin-left: 2px; }
+  #qiLabel { font-size: 10px; letter-spacing: .3em; color: #9fc8e8; margin-top: 4px; }
+  #heals { display: flex; gap: 7px; margin-bottom: 9px; align-items: center; }
+  #heals b { width: 13px; height: 17px; border-radius: 45% 45% 50% 50% / 35% 35% 65% 65%; background: var(--gold); box-shadow: 0 0 8px rgba(226, 178, 90, .6); display: block; }
+  #heals b.used { background: rgba(233, 226, 208, .14); box-shadow: none; }
+  #heals span { font-size: 11px; letter-spacing: .2em; color: #b9ac92; margin-left: 4px; }
+
+  #prompt { position: absolute; left: 50%; bottom: 23vh; transform: translateX(-50%); font-size: clamp(14px, 1.3vw, 19px); letter-spacing: .34em; text-indent: .34em; padding: 9px 22px; border-top: 1px solid var(--gold); border-bottom: 1px solid var(--gold); background: rgba(8, 8, 10, .55); color: #ffe6b0; opacity: 0; transition: opacity .15s; text-shadow: 0 0 12px rgba(255, 190, 90, .8); }
+  #prompt.on { opacity: 1; animation: pulse .7s infinite alternate; }
+  @keyframes pulse { from { box-shadow: 0 0 0 rgba(226, 178, 90, 0); } to { box-shadow: 0 0 26px rgba(226, 178, 90, .45); } }
+  #prompt kbd { font-family: inherit; border: 1px solid var(--gold); padding: 1px 8px; margin: 0 4px; letter-spacing: 0; }
+
+  #pops { position: absolute; left: 50%; top: 31vh; transform: translateX(-50%); text-align: center; }
+  .pop { font-size: clamp(18px, 2vw, 30px); letter-spacing: .5em; text-indent: .5em; white-space: nowrap; animation: pop 1.1s ease-out forwards; text-shadow: 0 0 18px currentColor, 0 2px 6px #000; }
+  .pop.gold { color: #ffe2a0; } .pop.blue { color: #bfe6ff; } .pop.red { color: #ff7a5a; }
+  @keyframes pop { 0% { opacity: 0; transform: scale(1.5); letter-spacing: .9em; } 12% { opacity: 1; transform: scale(1); } 70% { opacity: 1; } 100% { opacity: 0; transform: translateY(-14px); } }
+
+  #ring { position: absolute; left: 0; top: 0; width: 0; height: 0; opacity: 0; transition: opacity .1s; }
+  #ring i, #ring b { position: absolute; left: -34px; top: -34px; width: 68px; height: 68px; border-radius: 50%; display: block; }
+  #ring b { border: 2px solid rgba(255, 233, 176, .55); }
+  #ring i { border: 3px solid #ffe9b0; box-shadow: 0 0 12px rgba(255, 220, 140, .7); }
+  #ring.red b { border-color: rgba(255, 90, 60, .6); } #ring.red i { border-color: #ff4a2a; box-shadow: 0 0 14px rgba(255, 60, 30, .8); }
+  #ring.now b { border-width: 5px; border-color: #fff; box-shadow: 0 0 18px #fff; }
+  #ring span { position: absolute; left: -60px; width: 120px; top: 42px; text-align: center; font-size: 12px; letter-spacing: .2em; color: #ffe9b0; text-shadow: 0 1px 5px #000; white-space: nowrap; }
+  #ring.red span { color: #ff8a6a; }
+  #ring span kbd { font-family: inherit; border: 1px solid currentColor; padding: 0 6px; letter-spacing: 0; }
+  #demoCap { position: fixed; left: 50%; bottom: 13vh; transform: translateX(-50%); text-align: center; pointer-events: none; z-index: 2; opacity: 0; transition: opacity .5s; }
+  #demoCap.on { opacity: 1; }
+  #demoTitle { font-size: clamp(20px, 2.5vw, 38px); letter-spacing: .5em; text-indent: .5em; text-transform: uppercase; color: #f4ecd8; text-shadow: 0 0 24px rgba(194, 40, 27, .9), 0 3px 10px #000; white-space: nowrap; }
+  #demoSub { margin-top: 8px; font-size: clamp(12px, 1.15vw, 17px); letter-spacing: .22em; color: var(--gold); text-shadow: 0 2px 8px #000; white-space: nowrap; }
+  #demoSub kbd { font-family: inherit; border: 1px solid var(--gold); padding: 1px 8px; margin: 0 3px; letter-spacing: 0; color: #ffe6b0; }
+  #demoTag { position: fixed; right: 3vw; top: 4vh; font-size: 12px; letter-spacing: .4em; color: #b9ac92; z-index: 2; opacity: 0; transition: opacity .5s; pointer-events: none; }
+  #demoTag.on { opacity: .9; }
+  #ovGo2 { margin: 14px 0 0 0; display: inline-block; font: inherit; font-size: 13px; letter-spacing: .34em; text-indent: .34em; color: #cfc6b0; background: none; border: 1px solid rgba(233, 226, 208, .35); padding: 10px 26px; cursor: pointer; text-transform: uppercase; }
+  #ovGo2:hover { border-color: var(--gold); color: #ffe6b0; }
+  #danger { position: absolute; inset: 0; box-shadow: inset 0 0 22vw rgba(220, 30, 12, .55); opacity: 0; transition: opacity .12s; }
+  #card { pointer-events: none; z-index: 2; position: fixed; left: 7vw; bottom: 17vh; opacity: 0; transform: translateX(-30px); transition: opacity .7s, transform 1.4s cubic-bezier(.2, .7, .2, 1); display: flex; gap: 22px; align-items: flex-end; }
+  #card.on { opacity: 1; transform: none; }
+  #cardHan { font-family: var(--han); font-size: clamp(54px, 7vw, 108px); line-height: .95; writing-mode: vertical-rl; color: #f4ecd8; text-shadow: 0 0 30px rgba(194, 40, 27, .8), 0 4px 14px #000; }
+  #cardTitle { font-size: clamp(26px, 3.6vw, 56px); letter-spacing: .22em; text-transform: uppercase; text-shadow: 0 4px 18px #000; }
+  #cardSub { font-size: clamp(12px, 1.2vw, 18px); letter-spacing: .4em; color: var(--gold); margin-top: 6px; text-shadow: 0 2px 8px #000; }
+  #cardSeal { width: clamp(30px, 3vw, 46px); height: clamp(30px, 3vw, 46px); background: var(--red); color: #f6e6d0; font-family: var(--han); font-size: clamp(18px, 1.8vw, 28px); display: grid; place-items: center; margin-top: 12px; box-shadow: 0 0 18px rgba(194, 40, 27, .7); }
+
+  #fightWord { pointer-events: none; z-index: 2; position: fixed; inset: 0; display: grid; place-items: center; font-family: var(--han); font-size: clamp(80px, 13vw, 220px); color: #f4ecd8; opacity: 0; text-shadow: 0 0 60px rgba(194, 40, 27, .9), 0 6px 20px #000; }
+  #fightWord.go { animation: word 1.3s ease-out forwards; }
+  @keyframes word { 0% { opacity: 0; transform: scale(2.2); } 14% { opacity: 1; transform: scale(1); } 65% { opacity: 1; } 100% { opacity: 0; transform: scale(.94); } }
+
+  #keys { position: absolute; right: 3vw; bottom: 5vh; font-size: 12px; letter-spacing: .12em; color: #b9ac92; text-align: right; line-height: 1.9; opacity: .85; transition: opacity 1.5s; text-shadow: 0 1px 4px #000; }
+  #keys b { color: var(--paper); font-weight: normal; border: 1px solid rgba(233, 226, 208, .35); padding: 0 6px; margin-left: 8px; white-space: nowrap; }
+  #keys.dim { opacity: .28; }
+
+  #overlay { position: fixed; inset: 0; display: grid; place-items: center; background: radial-gradient(ellipse at center, rgba(6, 6, 9, .58), rgba(0, 0, 0, .93)); transition: opacity .6s; z-index: 5; }
+  #overlay.hide { opacity: 0; pointer-events: none; }
+  #ovBox { text-align: center; max-width: 880px; padding: 0 24px; }
+  #ovHan { font-family: var(--han); font-size: clamp(60px, 8vw, 120px); color: #f4ecd8; text-shadow: 0 0 44px rgba(194, 40, 27, .9); line-height: 1; }
+  #ovTitle { white-space: nowrap; font-size: clamp(28px, 4vw, 58px); letter-spacing: .34em; text-indent: .34em; text-transform: uppercase; margin-top: 14px; }
+  #ovTag { font-size: 14px; letter-spacing: .5em; text-indent: .5em; color: var(--gold); margin-top: 10px; text-transform: uppercase; }
+  #ovBody { margin: 26px auto 0; font-size: 15px; line-height: 1.75; color: #cfc6b0; max-width: 640px; }
+  #ovKeys { display: grid; grid-template-columns: repeat(4, auto); gap: 8px 30px; justify-content: center; margin-top: 24px; font-size: 13px; letter-spacing: .08em; color: #b9ac92; }
+  #ovKeys b { color: var(--paper); font-weight: normal; border: 1px solid rgba(233, 226, 208, .4); padding: 1px 8px; margin-right: 8px; }
+  #ovStats { display: flex; gap: 38px; justify-content: center; margin-top: 26px; }
+  #ovStats div { font-size: 12px; letter-spacing: .25em; color: #b9ac92; text-transform: uppercase; }
+  #ovStats strong { display: block; font-size: 30px; color: var(--paper); font-weight: normal; letter-spacing: .05em; margin-bottom: 4px; }
+  #ovGo { margin-top: 34px; display: inline-block; font: inherit; font-size: 15px; letter-spacing: .42em; text-indent: .42em; color: #ffe6b0; background: rgba(120, 20, 14, .35); border: 1px solid var(--gold); padding: 13px 34px; cursor: pointer; text-transform: uppercase; }
+  #ovGo:hover { background: rgba(194, 40, 27, .6); }
+  #ovRepo { display: inline-block; margin-top: 22px; font-size: 12px; letter-spacing: .3em; color: #8f866f; text-decoration: none; border-bottom: 1px solid rgba(143, 134, 111, .4); padding-bottom: 2px; }
+  #ovRepo:hover { color: #ffe6b0; border-color: var(--gold); }
+  #ovBarWrap { width: 280px; height: 2px; background: rgba(233, 226, 208, .18); margin: 32px auto 0; }
+  #ovBar { height: 100%; width: 0; background: var(--gold); transition: width .2s; }
+  #err { position: fixed; left: 8px; bottom: 6px; font: 12px monospace; color: #f66; white-space: pre-wrap; z-index: 9; }
+</style>
+<script type="importmap">{ "imports": { "three": "/node_modules/three/build/three.module.js", "three/addons/": "/node_modules/three/examples/jsm/" } }</script>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud">
+  <div id="danger"></div>
+  <div id="boss">
+    <div id="bossName">Marshal Yan</div>
+    <div id="bossSub">Warden of the Vermilion Gate</div>
+    <div class="bar"><i id="bossLag"></i><i id="bossFill"></i><span id="bossMark"></span></div>
+    <div class="bar" id="post"><i id="postFill"></i></div>
+  </div>
+  <div id="hero">
+    <div id="arms"><div id="armW"><kbd></kbd><span></span><em></em></div><div id="armS"><kbd></kbd><span></span></div></div>
+    <div id="heals"><b></b><b></b><b></b><span>FOCUS</span></div>
+    <div class="bar"><i id="heroLag"></i><i id="heroFill"></i></div>
+    <div class="bar" id="guard"><i id="guardFill"></i></div>
+    <div id="qiLabel">QI</div>
+  </div>
+  <div id="ring"><b></b><i></i><span></span></div>
+  <div id="prompt"></div>
+  <div id="pops"></div>
+  <div id="keys">
+    Move <b>W A S D</b><br>Slash <b>Left click</b> · Heavy <b>Right click</b><br>Guard / parry <b>Shift</b> · Dodge <b>Space</b><br>Focus (heal) <b>R</b> · Finisher <b>F</b>
+  </div>
+</div>
+<div id="card"><div id="cardHan">閻帥</div><div><div id="cardTitle">Marshal Yan</div><div id="cardSub">Warden of the Vermilion Gate</div><div id="cardSeal">守</div></div></div>
+<div id="fightWord">決</div>
+<div id="demoCap"><div id="demoTitle"></div><div id="demoSub"></div></div>
+<div id="demoTag">SHOWCASE · the game is playing itself</div>
+<div id="overlay">
+  <div id="ovBox">
+    <div id="ovHan">朱門</div>
+    <div id="ovTitle">Vermilion Gate</div>
+    <div id="ovTag">Loading</div>
+    <div id="ovBody"></div>
+    <div id="ovKeys"></div>
+    <div id="ovStats"></div>
+    <button id="ovGo" style="display:none"></button><br><button id="ovGo2" style="display:none"></button>
+    <br><a id="ovRepo" href="https://github.com/ahmedomar365/phantom_blade_zero_fable" target="_blank" rel="noopener noreferrer">SOURCE ON GITHUB</a>
+    <div id="ovBarWrap"><div id="ovBar"></div></div>
+  </div>
+</div>
+<div id="err"></div>
+<script>
+  addEventListener('error', (e) => { document.getElementById('err').textContent += (e.message || e) + '\n'; });
+  addEventListener('unhandledrejection', (e) => { document.getElementById('err').textContent += (e.reason && (e.reason.stack || e.reason.message) || e.reason) + '\n'; });
+</script>
+<script type="module" src="/src/main.js"></script>
+</body>
+</html>

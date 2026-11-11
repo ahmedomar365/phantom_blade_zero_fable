@@ -1,0 +1,22 @@
+// Drives the game with real keyboard and mouse events (no bot) and prints the hero's state after each.
+import { chromium } from 'playwright-core';
+const PORT = process.env.PORT || 5260;
+const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--use-angle=d3d11', '--ignore-gpu-blocklist', '--enable-gpu', '--mute-audio'] });
+const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+page.on('pageerror', (e) => console.log('[pageerror]', e.message));
+await page.goto(`http://localhost:${PORT}/?skip=1&god=1`);
+await page.waitForFunction(() => window.gameReady, null, { timeout: 90000 });
+const st = async (label) => console.log(label.padEnd(22), JSON.stringify(await page.evaluate(() => { const h = game.hero; return { state: h.state, clip: h.a.clip, z: +h.pos.z.toFixed(2), x: +h.pos.x.toFixed(2), game: game.state }; })));
+await page.waitForTimeout(800); await st('start');
+await page.keyboard.down('KeyW'); await page.waitForTimeout(700); await st('W held 0.7s'); await page.keyboard.up('KeyW');
+await page.keyboard.down('KeyD'); await page.waitForTimeout(500); await st('D held 0.5s'); await page.keyboard.up('KeyD');
+await page.mouse.click(640, 360); await page.waitForTimeout(120); await st('left click');
+await page.mouse.click(640, 360); await page.waitForTimeout(350); await st('second click (combo)');
+await page.waitForTimeout(900);
+await page.mouse.click(640, 360, { button: 'right' }); await page.waitForTimeout(250); await st('right click');
+await page.waitForTimeout(1100);
+await page.keyboard.down('ShiftLeft'); await page.waitForTimeout(200); await st('Shift held'); await page.keyboard.up('ShiftLeft');
+await page.waitForTimeout(300);
+await page.keyboard.press('Space'); await page.waitForTimeout(120); await st('Space');
+await page.waitForTimeout(600); await st('after dash');
+await browser.close();

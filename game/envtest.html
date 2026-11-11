@@ -1,0 +1,93 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Vermilion Gate - environment test</title>
+<link rel="icon" href="data:,">
+<style>html,body{margin:0;height:100%;background:#000;overflow:hidden}canvas{display:block;width:100vw;height:100vh}
+#info{position:fixed;left:10px;top:8px;color:#9ab;font:12px monospace;text-shadow:0 0 3px #000}</style>
+<script type="importmap">{"imports":{"three":"/node_modules/three/build/three.module.js","three/addons/":"/node_modules/three/examples/jsm/"}}</script>
+</head><body><canvas id="c"></canvas><div id="info"></div>
+<script type="module">
+// ?cam=play|game|game2|wide|low|rev|orbit|top|east|west|door|duel|gate  &phase=0..1  &q=0..2  &bars=1  &desat=1  &blur=1  &damage=1
+// &rip=1 (ripple test)  &gust=1  &hud=0
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { Env } from './src/env.js';
+const Q = new URLSearchParams(location.search);
+const env = new Env(document.getElementById('c'), { quality: Number(Q.get('q') ?? 2) });
+window.env = env;
+await env.load((p) => { document.getElementById('info').textContent = 'loading ' + Math.round(p * 100) + '%'; });
+
+// stand-ins: a real character mesh if assets/_standin.glb exists, else capsule figures
+const A = new THREE.Vector3(0, 0, 5), B = new THREE.Vector3(0, 0, -4);
+function capsule(h, cloth, trim) {
+  const g = new THREE.Group(), s = h / 1.8;
+  const mc = new THREE.MeshStandardMaterial({ color: cloth, roughness: 0.8 }), mt = new THREE.MeshStandardMaterial({ color: trim, roughness: 0.35, metalness: 1 });
+  const add = (geo, m, x, y, z, rx = 0, rz = 0) => { const o = new THREE.Mesh(geo, m); o.position.set(x * s, y * s, z * s); o.rotation.set(rx, 0, rz); o.castShadow = o.receiveShadow = true; g.add(o); return o; };
+  add(new THREE.CapsuleGeometry(0.21 * s, 0.50 * s, 6, 14), mc, 0, 1.22, 0);
+  add(new THREE.SphereGeometry(0.115 * s, 16, 12), mc, 0, 1.70, 0);
+  add(new THREE.ConeGeometry(0.34 * s, 0.16 * s, 20), mt, 0, 1.83, 0);
+  for (const sx of [1, -1]) {
+    add(new THREE.CapsuleGeometry(0.085 * s, 0.72 * s, 4, 10), mc, 0.11 * sx, 0.46, 0);
+    add(new THREE.CapsuleGeometry(0.06 * s, 0.55 * s, 4, 10), mc, 0.30 * sx, 1.22, 0.06, 0.3, 0.2 * sx);
+  }
+  add(new THREE.ConeGeometry(0.42 * s, 0.9 * s, 14, 1, true), mc, 0, 0.72, 0);
+  add(new THREE.BoxGeometry(0.03 * s, 1.15 * s, 0.07 * s), mt, -0.36, 1.35, 0.35, 0.9, 0.0);
+  return g;
+}
+let hero, boss;
+const mixers = [];
+async function actor(file, clipName) {
+  if (!(await fetch(file, { method: 'HEAD' }).then((r) => r.ok).catch(() => false))) return null;
+  const g = await new GLTFLoader().loadAsync(file);
+  g.scene.traverse((o) => {
+    if (!o.isMesh) return;
+    o.castShadow = o.receiveShadow = true; o.frustumCulled = false;
+    for (const m of [].concat(o.material)) if (m.userData.tint) m.color.setRGB(...m.userData.tint);
+  });
+  const mx = new THREE.AnimationMixer(g.scene);
+  const c = g.animations.find((x) => x.name === clipName);
+  if (c) { mx.clipAction(c).play(); mx.setTime(0.3); mixers.push(mx); }
+  return g.scene;
+}
+hero = (await actor('assets/hero.glb', 'Idle')) || capsule(1.8, 0x1a2230, 0x8a8f98);
+boss = (await actor('assets/boss.glb', 'Idle')) || capsule(2.3, 0x3a0a08, 0xb08a40);
+hero.rotation.y = Math.PI;           // models face +Z; the hero looks north (-Z) at the boss
+if (Q.get('cam') === 'game' || Q.get('cam') === 'game2') { A.set(0, 0, 3); B.set(0, 0, -1.5); }
+hero.position.copy(A); boss.position.copy(B);
+env.scene.add(hero, boss);
+
+const CAMS = {
+  play: [[1.1, 2.15, 9.3], [0, 1.45, -2], 45], wide: [[4.5, 3.2, 15.5], [0, 2.4, -8], 48], low: [[-2.6, 0.45, 8.4], [0.4, 2.1, -4], 42],
+  rev: [[-1.2, 2.2, -8.6], [0.3, 1.3, 4], 45], top: [[0, 30, 14], [0, 0, -3], 50], east: [[-9, 2.2, 5], [14, 4, -8], 50],
+  door: [[0, 1.7, -9.5], [0, 3.4, -24], 40], west: [[9, 2.0, 3], [-15, 2.2, -4], 50], duel: [[5.2, 1.25, 1.2], [-0.6, 1.25, 0.4], 38],
+  gate: [[0, 2.0, 4], [0, 2.6, 17], 50],
+  game: [[1.2, 2.5, 7.5], [0, 1.5, 0], 45], game2: [[0.9, 2.3, 10.5], [0, 1.5, 0], 45],
+};
+const cam = Q.get('cam') || 'play';
+env.setPhase(Number(Q.get('phase') || 0));
+if (Q.get('phase')) env.phase = Number(Q.get('phase'));
+env.post.bars = Number(Q.get('bars') || 0); env.post.desat = Number(Q.get('desat') || 0); env.post.blur = Number(Q.get('blur') || 0);
+env.post.damage = Number(Q.get('damage') || 0);
+const focus = new THREE.Vector3().addVectors(A, B).multiplyScalar(0.5);
+addEventListener('resize', () => env.resize());
+let last = performance.now(), frames = 0, acc = 0, T = 0, rip = 0;
+window.envFps = 0; let NF = 0; window.debugState = () => ({ T: +T.toFixed(2), NF, calls: env.renderer.info.render.calls, tris: env.renderer.info.render.triangles });
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now; T += dt;
+  frames++; NF++; acc += dt;
+  if (acc > 0.5) {
+    window.envFps = Math.round(frames / acc); frames = 0; acc = 0;
+    document.getElementById('info').textContent = Q.get('hud') === '0' ? '' : window.envFps + ' fps  q' + env.quality + '  ' + cam;
+  }
+  if (cam === 'orbit') { const a = T * 0.25; env.camera.position.set(Math.sin(a) * 12, 2.4, Math.cos(a) * 12); env.camera.lookAt(0, 1.5, 0); env.camera.fov = 45; }
+  else { const [p, t, f] = CAMS[cam]; env.camera.position.set(...p); env.camera.lookAt(...t); env.camera.fov = f; }
+  env.camera.updateProjectionMatrix();
+  if (Q.get('rip') && (rip -= dt) < 0) { rip = 0.7; env.ripple(A.x + (Math.random() - 0.5) * 3, A.z - 1 - Math.random() * 3, 0.5 + Math.random() * 2.5); }
+  if (Q.get('gust') && Math.floor(T / 3) !== Math.floor((T - dt) / 3)) env.gust(1.5);
+  for (const m of mixers) m.update(dt);
+  env.update(dt, focus);
+  env.render();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+window.envReady = true;
+</script></body></html>
